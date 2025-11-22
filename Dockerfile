@@ -59,7 +59,6 @@ RUN apt-get clean && apt-get update && apt-get install -y \
 
 # Copy compiled Dymo SDK from builder
 COPY --from=builder /usr/local/lib/libDymoSDK* /usr/local/lib/
-COPY --from=builder /usr/local/include/DymoSDK /usr/local/include/DymoSDK
 COPY --from=builder /usr/share/cups/model/lw450.ppd /usr/share/cups/model/
 
 # Update library cache
