@@ -3,6 +3,8 @@ services:
         build: .
         container_name: Cups
         restart: unless-stopped
+        env_file:
+            - .env
         ports:
             - "631:631"
         devices:

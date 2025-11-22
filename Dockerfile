@@ -64,6 +64,9 @@ COPY --from=builder /usr/share/cups/model/lw450.ppd /usr/share/cups/model/
 # Update library cache
 RUN ldconfig
 
+# Create CUPS admin user (password will be set via environment variable)
+RUN useradd -r -G lpadmin -s /bin/false cupsadmin
+
 # Copy the default configuration file
 COPY --chown=root:lp cupsd.conf /etc/cups/cupsd.conf
 

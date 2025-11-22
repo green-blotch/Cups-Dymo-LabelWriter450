@@ -1,4 +1,9 @@
 #!/bin/bash
+# Set admin password from environment variable or use default
+CUPS_ADMIN_PASSWORD=${CUPS_ADMIN_PASSWORD:-admin}
+echo "cupsadmin:${CUPS_ADMIN_PASSWORD}" | chpasswd
+echo "CUPS admin user password set"
+
 # Launch cupds in the foreground
 echo "Starting Cups Demon"
 /usr/sbin/cupsd
@@ -25,9 +30,6 @@ echo "Setting Default Printer"
 lpoptions -d dymo
 
 echo "Finished Setup! XD"
-
-# Test Print
-lp -d dymo test.txt
 
 # Keep the container running
 /usr/sbin/cupsd -f
