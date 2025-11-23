@@ -97,7 +97,7 @@ ENV PYTHONPATH=/app
 RUN chmod +x /setup.sh
 
 # Expose ports for CUPS and web interface
-EXPOSE 631 8080
+EXPOSE 631 5000
 
 # Run CUPS in the foreground
 CMD ["/setup.sh"]

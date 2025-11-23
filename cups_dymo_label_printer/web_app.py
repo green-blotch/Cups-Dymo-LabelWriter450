@@ -97,7 +97,7 @@ def printer_status():
     return jsonify(status)
 
 
-def run_app(host: str = '0.0.0.0', port: int = 8080, debug: bool = False):
+def run_app(host: str = '0.0.0.0', port: int = 5000, debug: bool = False):
     """
     Run the Flask application.
     
