@@ -59,5 +59,9 @@ lpstat -p dymo
 
 echo "Finished Setup! XD"
 
+# Start Flask web server in background
+echo "Starting Label Web Interface on port 5000..."
+cd /web_app && python3 app.py &
+
 # Keep the container running
 /usr/sbin/cupsd -f

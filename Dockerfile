@@ -37,7 +37,6 @@ FROM debian:bullseye
 # Install only runtime dependencies
 RUN apt-get clean && apt-get update && apt-get install -y \
     sudo \
-    whois \
     usbutils \
     cups \
     cups-client \
@@ -54,8 +53,15 @@ RUN apt-get clean && apt-get update && apt-get install -y \
     printer-driver-dymo \
     libcups2 \
     libcupsimage2 \
+    python3 \
+    python3-pip \
+    python3-pil \
+    python3-cups \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages for web server
+RUN pip3 install --no-cache-dir flask==2.3.3 Pillow==10.0.0
 
 # Copy compiled Dymo SDK from builder
 COPY --from=builder /usr/local/lib/libDymoSDK* /usr/local/lib/
@@ -74,7 +80,13 @@ COPY --chown=root:lp cupsd.conf /etc/cups/cupsd.conf
 COPY setup.sh /setup.sh
 COPY test.txt /test.txt
 
+# Copy web application
+COPY web_app/ /web_app/
+
 RUN chmod +x /setup.sh
+
+# Expose ports for CUPS and web interface
+EXPOSE 631 5000
 
 # Run CUPS in the foreground
 CMD ["./setup.sh"]
