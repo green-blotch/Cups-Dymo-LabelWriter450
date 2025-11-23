@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "cups-dymo-label-printer"
+version = "0.1.0"
+description = "Web interface for printing labels on Dymo LabelWriter 450 via CUPS"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "cups_dymo_label_printer"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+flask = "^2.3.3"
+pillow = "^10.0.0"
+# Note: python-cups is not available via pip/poetry on all platforms
+# It will be installed via apt in the Docker container
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-mock = "^3.11.1"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=cups_dymo_label_printer --cov-report=term-missing"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

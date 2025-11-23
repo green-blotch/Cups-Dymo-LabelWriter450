@@ -61,7 +61,7 @@ echo "Finished Setup! XD"
 
 # Start Flask web server in background
 echo "Starting Label Web Interface on port 5000..."
-cd /web_app && python3 app.py &
+cd /app && python3 -m cups_dymo_label_printer.web_app &
 
 # Keep the container running
 /usr/sbin/cupsd -f

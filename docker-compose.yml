@@ -7,6 +7,21 @@ services:
             - .env
         ports:
             - "631:631"
-            - "5000:5000"
+            - "${WEBSERVER_PORT:-5000}:5000"
         devices:
             - /dev/bus/usb:/dev/bus/usb
+        networks:
+            - isolated_network
+        # Disable all external network access
+        cap_drop:
+            - NET_RAW
+        dns:
+            - 127.0.0.1  # Point to localhost (no real DNS)
+
+networks:
+    isolated_network:
+        driver: bridge
+        internal: true  # No external internet access
+        ipam:
+            config:
+                - subnet: 172.28.0.0/16

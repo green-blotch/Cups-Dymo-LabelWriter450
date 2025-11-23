@@ -60,8 +60,8 @@ RUN apt-get clean && apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python packages for web server
-RUN pip3 install --no-cache-dir flask==2.3.3 Pillow==10.0.0
+# Install Poetry temporarily to generate requirements
+RUN pip3 install --no-cache-dir poetry==1.6.1
 
 # Copy compiled Dymo SDK from builder
 COPY --from=builder /usr/local/lib/libDymoSDK* /usr/local/lib/
@@ -80,13 +80,24 @@ COPY --chown=root:lp cupsd.conf /etc/cups/cupsd.conf
 COPY setup.sh /setup.sh
 COPY test.txt /test.txt
 
-# Copy web application
-COPY web_app/ /web_app/
+# Copy Python package and tests
+COPY cups_dymo_label_printer/ /app/cups_dymo_label_printer/
+COPY tests/ /app/tests/
+COPY pyproject.toml /app/
+
+# Generate requirements.txt from pyproject.toml and install dependencies
+WORKDIR /app
+RUN poetry export -f requirements.txt --output requirements.txt --with dev --without-hashes \
+    && pip3 install --no-cache-dir -r requirements.txt \
+    && pip3 uninstall -y poetry
+
+# Set Python path to include our package
+ENV PYTHONPATH=/app
 
 RUN chmod +x /setup.sh
 
 # Expose ports for CUPS and web interface
-EXPOSE 631 5000
+EXPOSE 631 8080
 
 # Run CUPS in the foreground
-CMD ["./setup.sh"]
+CMD ["/setup.sh"]
