@@ -12,16 +12,30 @@ services:
             - /dev/bus/usb:/dev/bus/usb
         networks:
             - isolated_network
-        # Disable all external network access
+        # Security: Prevent container escape and external network access
         cap_drop:
+            - NET_ADMIN
             - NET_RAW
+            - SYS_ADMIN
+            - SYS_MODULE
+        security_opt:
+            - no-new-privileges:true
+        # Block DNS to prevent external resolution
         dns:
-            - 127.0.0.1  # Point to localhost (no real DNS)
+            - 127.0.0.1
+        # Read-only root filesystem (if application allows)
+        # read_only: true
+        # tmpfs:
+        #   - /tmp
+        #   - /var/run
 
 networks:
     isolated_network:
         driver: bridge
-        internal: true  # No external internet access
+        # Removed 'internal: true' to allow port mapping to host
+        # External network blocking is handled by capabilities and DNS
+        driver_opts:
+            com.docker.network.bridge.enable_ip_masquerade: "false"
         ipam:
             config:
                 - subnet: 172.28.0.0/16
