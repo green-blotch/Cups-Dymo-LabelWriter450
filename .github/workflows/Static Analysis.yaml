@@ -34,7 +34,7 @@ jobs:
           hadolint --failure-threshold error --verbose *Dockerfile
       - name: Docker Compose Lint
         run: |
-          docker-compose config  || { echo "Invalid Docker Compose file"; exit 1; }
+          docker compose config  || { echo "Invalid Docker Compose file"; exit 1; }
 
   Markdown_Lint_Check:
     name: Markdown Lint Check
