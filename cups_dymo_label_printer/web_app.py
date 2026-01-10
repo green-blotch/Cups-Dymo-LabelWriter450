@@ -6,6 +6,9 @@ Provides a web interface for designing and printing labels.
 
 from io import BytesIO
 import base64
+import json
+import os
+import uuid
 from flask import Flask, render_template, request, jsonify
 
 from .config import LABEL_SIZES, DEFAULT_LABEL_SIZE, DEFAULT_FONT_SIZE
@@ -15,6 +18,72 @@ from .printer_service import PrinterService
 
 app = Flask(__name__)
 printer_service = PrinterService()
+_MEMORY_FILE = os.getenv('LABEL_MEMORY_FILE', 'saved_labels.json')
+_saved_labels: list[dict] = []  # in-memory stack of saved labels
+
+
+def _label_key(payload: dict) -> tuple:
+    """Generate a hashable key for deduplication of saved labels."""
+    return (
+        payload.get('text', ''),
+        payload.get('label_size', DEFAULT_LABEL_SIZE),
+        int(payload.get('font_size', DEFAULT_FONT_SIZE)),
+        payload.get('align', 'center'),
+        int(payload.get('copies', 1)),
+    )
+
+
+def _save_label(payload: dict) -> dict:
+    """Save label payload to stack, deduplicating and moving to top."""
+    global _saved_labels
+    key = _label_key(payload)
+    # Remove any existing matching entry
+    _saved_labels = [entry for entry in _saved_labels if _label_key(entry) != key]
+    new_entry = {
+        'id': str(uuid.uuid4()),
+        'text': payload.get('text', ''),
+        'label_size': payload.get('label_size', DEFAULT_LABEL_SIZE),
+        'font_size': int(payload.get('font_size', DEFAULT_FONT_SIZE)),
+        'align': payload.get('align', 'center'),
+        'copies': int(payload.get('copies', 1)),
+    }
+    _saved_labels.insert(0, new_entry)
+    _persist_memory()
+    return new_entry
+
+
+def _delete_labels(ids: list[str]) -> None:
+    """Delete labels by id from the saved stack."""
+    global _saved_labels
+    id_set = set(ids)
+    _saved_labels = [entry for entry in _saved_labels if entry['id'] not in id_set]
+    _persist_memory()
+
+
+def _persist_memory() -> None:
+    try:
+        with open(_MEMORY_FILE, 'w', encoding='utf-8') as fh:
+            json.dump(_saved_labels, fh)
+    except Exception:
+        # Fail-soft on persistence errors
+        pass
+
+
+def _load_memory() -> None:
+    global _saved_labels
+    if not _MEMORY_FILE or not os.path.exists(_MEMORY_FILE):
+        _saved_labels = []
+        return
+    try:
+        with open(_MEMORY_FILE, 'r', encoding='utf-8') as fh:
+            data = json.load(fh)
+            if isinstance(data, list):
+                _saved_labels = data
+    except Exception:
+        _saved_labels = []
+
+
+_load_memory()
 
 
 @app.route('/')
@@ -75,6 +144,9 @@ def print_label():
         
         # Print the label
         job_id = printer_service.print_image(image, label_size, copies, 'Label')
+
+        # Save to memory stack (dedup + move to top)
+        _save_label(data)
         
         return jsonify({
             'success': True,
@@ -95,6 +167,21 @@ def printer_status():
     """Get the current printer status."""
     status = printer_service.get_printer_status()
     return jsonify(status)
+
+
+@app.route('/memory', methods=['GET', 'DELETE'])
+def memory():
+    """Manage in-memory saved labels stack."""
+    if request.method == 'GET':
+        return jsonify(_saved_labels)
+
+    # DELETE selected ids
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids', [])
+    if not isinstance(ids, list):
+        return jsonify({'success': False, 'error': 'ids must be a list'}), 400
+    _delete_labels([str(i) for i in ids])
+    return jsonify({'success': True, 'remaining': _saved_labels})
 
 
 def run_app(host: str = '0.0.0.0', port: int = 5000, debug: bool = False):

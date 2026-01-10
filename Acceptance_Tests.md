@@ -1,375 +1,165 @@
 # Acceptance Tests
 
-This web application provides a user-friendly interface for printing labels on a Dymo LabelWriter 450 through CUPS.
+These scenarios describe the expected, user-visible behaviors of the LabelWriter 450 web printer. Implement them with TDD (red/green/refactor) and keep this file in sync with the shipped features.
 
-**Test Implementation Notes:**
-- Tests use pytest framework
-- Label Generator tests require no mocking (pure image generation)
-- Printer Service tests require mocked CUPS connection
-- Web App tests use Flask test client with mocked services
-- Performance target: Label generation < 100ms, Print submission < 500ms
+## Label Generation
 
----
-
-## Label Generator Module
-
-**Test Priority: HIGH** - Core functionality, implement first
-**Mocking Required: None** - Pure PIL image generation
-
-### Happy Path Tests
-
-### Should create label image with default settings
-
-- Given a `text` string "Hello World"
-- When creating a label image with default settings
-- Then a PIL Image should be returned
-- And the image dimensions should match label size 11354 (57mm x 32mm at 300 DPI)
-- And the text should be centered vertically and horizontally
-- And the background should be white
-- And the text should be black
-
-#### Test Data
-
-- Input:
-  - text: "Hello World"
-  - label_size: "11354" (default)
-  - font_size: 40 (default)
-  - align: "center" (default)
-
-- Expected Output:
-  - Image width: 673 pixels (57mm at 300 DPI)
-  - Image height: 378 pixels (32mm at 300 DPI)
-  - Background color: RGB(255, 255, 255)
-  - Text color: RGB(0, 0, 0)
-
-### Should create label with custom font size and alignment
-
-- Given a `text` string "Test Label"
-- And a `font_size` of 60
-- And an `align` value of "left"
+### Should render default label with correct dimensions
+- Given text `Hello World`
+- And default label size `11354`
 - When creating a label image
-- Then the text should appear larger than default
-- And the text should be left-aligned with 20 pixels margin
+- Then the image mode is `RGB`
+- And the pixel dimensions equal the configured mm size converted at DPI 300
+- And the background pixels are white
 
-#### Test Data
+### Should support all configured label sizes
+- Given any label code in `{11354, 30252, 30323, 30256, 99012}`
+- When creating a label image with that code
+- Then the image width and height match the mm dimensions at DPI 300
+- And the label size maps to its CUPS media code as defined in `LABEL_SIZES`
 
-- Input:
-  - text: "Test Label"
-  - label_size: "11354"
-  - font_size: 60
-  - align: "left"
-
-- Expected behavior:
-  - Text x-position: 20 pixels from left edge
-  - Text y-position: vertically centered
-  - Font size: 60 points
-
-### Error Cases
-
-### Should raise ValueError for unknown label size
-
-- Given a `text` string
-- And each `label_size` code from LABEL_SIZES
-- When creating label images for each size
-- Then the image dimensions should match the label size specifications
-- And all images should render successfully
-
-#### Test Data
-
-| Label Code | Name | Width (mm) | Height (mm) | CUPS Code |
-|------------|------|------------|-------------|-----------|
-| 11354 | Multipurpose | 57 | 32 | w162h90 |
-| 30252 | Address | 28 | 89 | w79h252 |
-| 30323 | Shipping | 54 | 101 | w153h286 |
-| 30256 | Shipping | 59 | 101 | w167h286 |
-| 99012 | Large Address | 89 | 36 | w252h102 |
-
-### Should raise ValueError for unknown label size
-
-- Given a `text` string
-- And an invalid `label_size` code "INVALID"
+### Should reject unknown label sizes
+- Given label size `INVALID`
 - When creating a label image
-- Then a ValueError should be raised
-- And the error message should contain "Unknown label size: INVALID"
-
-### Should handle right alignment correctly
-
-- Given a `text` string "Right Aligned"
-- And an `align` value of "right"
-- When creating a label image
-- Then the text should be right-aligned with 20 pixels margin from right edge
-
-## Printer Service Module
-
-### Should submit print job to CUPS with correct options
-
-- Given a PIL Image
-- And a `label_size` of "11354"
-- And `copies` count of 2
-- When printing the image
-- Then a temporary PNG file should be created
-- And CUPS printFile should be called with:
-  - printer: "dymo"
-  - options: {"media": "w162h90", "fit-to-page": "True", "copies": "2"}
-- And the temporary file should be cleaned up after printing
-- And a job ID should be returned
-
-### Error Cases
-
-### Should raise ValueError for invalid label size
-
-- Given a PIL Image
-- And an invalid `label_size` code "INVALID"
-- When attempting to print
-- Then a ValueError should be raised
-- And the error message should contain "Unknown label size: INVALID"
-
-### Should raise RuntimeError if CUPS printing fails
-
-- Given a PIL Image
-- And CUPS connection fails or returns an error
-- When attempting to print
-- Then a RuntimeError should be raised
-- And the error message should contain "Failed to print"
-
-### Should retrieve printer status
-
-- Given a working CUPS connection
-- And printer "dymo" exists
-- When getting printer status
-- Then a dictionary with printer information should be returned
-- And it should contain printer state and attributes
-
-### Should handle missing printer gracefully
-
-- Given a CUPS connection
-- And printer "dymo" does not exist
-- When getting printer status
-- Then a dictionary should be returned
-- And it should contain: {"error": "Printer not found"}
-
----
-
-## Web Application Module
-
-**Test Priority: MEDIUM** - Integration layer
-**Mocking Required: Yes** - Mock `PrinterService` methods
-
-### Happy Path Tests
-
-### Should render index page with label sizes
-
-- Given the Flask application is running
-- When accessing the root endpoint "/"
-- Then the index.html template should be rendered
-- And label_sizes should be passed to the template
-- And the response status should be 200 OK
-
-### Should validate and accept print requests
-
-- Given a POST request to "/print"
-- And valid JSON data:
-
-  ```json
-  {
-    "text": "Test Label",
-    "label_size": "11354",
-    "font_size": 40,
-    "align": "center",
-    "copies": 1
-  }
-  ```
-
-- When the request is processed
-- Then a label image should be created
-- And the image should be sent to the printer
-- And the response should be:
-
-  ```json
-  {
-    "success": true,
-    "message": "Print job {job_id} submitted successfully",
-    "job_id": 123
-  }
-  ```
-
-- And the response status should be 200 OK
-
-### Error Cases
-
-### Should reject print request with empty text
-
-- Given a POST request to "/print"
-- And JSON data with empty text:
-
-  ```json
-  {
-    "text": "",
-    "label_size": "11354",
-    "font_size": 40,
-    "align": "center",
-    "copies": 1
-  }
-  ```
-
-- When the request is processed
-- Then no print job should be submitted
-- And the response should be:
-
-  ```json
-  {
-    "success": false,
-    "error": "No text provided"
-  }
-  ```
-
-- And the response status should be 400 Bad Request
-
-### Should handle invalid label size in print request
-
-- Given a POST request to "/print"
-- And JSON data with invalid label_size:
-
-  ```json
-  {
-    "text": "Test",
-    "label_size": "INVALID",
-    "font_size": 40,
-    "align": "center",
-    "copies": 1
-  }
-  ```
-
-- When the request is processed
-- Then a ValueError should be caught
-- And the response should be:
-
-  ```json
-  {
-    "success": false,
-    "error": "Unknown label size: INVALID"
-  }
-  ```
-
-- And the response status should be 400 Bad Request
-
-### Should handle printer errors gracefully
-
-- Given a POST request to "/print"
-- And valid JSON data
-- But CUPS printing fails
-- When the request is processed
-- Then a RuntimeError should be caught
-- And the response should contain:
-
-  ```json
-  {
-    "success": false,
-    "error": "Failed to print: {error_details}"
-  }
-  ```
-
-- And the response status should be 500 Internal Server Error
-
-### Preview Feature Tests
-
-### Should generate preview image as base64
-
-- Given a POST request to "/preview"
-- And valid JSON data:
-
-  ```json
-  {
-    "text": "Preview Text",
-    "label_size": "11354",
-    "font_size": 40,
-    "align": "center"
-  }
-  ```
-
-- When the request is processed
-- Then a label image should be created
-- And the image should be converted to base64 PNG
-- And the response should contain:
-
-  ```json
-  {
-    "success": true,
-    "image": "data:image/png;base64,{base64_string}"
-  }
-  ```
-
-- And the response status should be 200 OK
-
-### Additional Routes
-
-### Should return printer status
-
-- Given a GET request to "/status"
-- When the request is processed
-- Then printer status should be retrieved from PrinterService
-- And the status dictionary should be returned as JSON
-- And the response status should be 200 OK
-
----
-
-## Docker Container Integration
-
-**Test Priority: LOW** - Manual testing acceptable for now
-**Mocking Required: N/A** - Integration testing
-
-### Should start CUPS daemon successfully
-
-- Given the Docker container is built
-- When the container starts
-- Then the setup.sh script should execute
-- And CUPS daemon should start
-- And the Dymo printer should be auto-detected (if connected)
-- And the printer should be added as "dymo"
-- And the printer should be enabled and accepting jobs
-
-### Should start Flask web server on port 5000
-
-- Given the Docker container is running
-- When accessing port 5000
-- Then the web interface should be accessible
-- And the label printing form should be displayed
-
-### Should set CUPS admin password from environment
-
-- Given the CUPS_ADMIN_PASSWORD environment variable is set
-- When the container starts
-- Then the cupsadmin user password should be updated
-- And the CUPS web interface at port 631 should require authentication
-
-### Should copy Python package correctly
-
-- Given the Docker build process
-- When copying the cups_dymo_label_printer package
-- Then all modules should be present in /app/cups_dymo_label_printer/
-- And the PYTHONPATH should include /app
-- And the web app should be runnable via: python3 -m cups_dymo_label_printer.web_app
-
----
-
-## End-to-End Workflow
-
-**Test Priority: LOW** - Manual testing
-**Mocking Required: N/A** - Full system integration
-
-### Should complete full label printing workflow
-
-- Given a user accesses the web interface at port 5000
-- When the user enters text "Raspberry Pi Zero"
-- And selects label size "11354"
-- And sets font size to 45
-- And chooses center alignment
-- And sets copies to 2
-- And clicks "Print Label"
-- Then the form should submit via JavaScript
-- And a POST request should be sent to /print
-- And a label image should be generated
-- And the image should be sent to CUPS
-- And CUPS should print to the Dymo LabelWriter 450
-- And a success message should be displayed to the user
-- And 2 labels should be printed
+- Then a `ValueError` is raised with message `Unknown label size: INVALID`
+
+### Should align text left, center, and right
+- Given text `Align Me`
+- When creating labels with `align` set to `left`, `center`, and `right`
+- Then a label image is produced for each alignment without errors
+- And the text bounding box stays within the image bounds
+
+## Printer Service
+
+### Should build correct CUPS options and submit print job
+- Given a PIL image and label size `11354`
+- And copies set to `2`
+- When calling `PrinterService.print_image`
+- Then it saves a temporary PNG
+- And calls `cups.Connection.printFile` with options `media=w162h90`, `fit-to-page=True`, `copies=2`
+- And removes the temporary file after submission
+- And returns the CUPS job id from `printFile`
+
+### Should reject invalid label size before printing
+- Given label size `BAD`
+- When calling `PrinterService.print_image`
+- Then a `ValueError` is raised and no CUPS call is made
+
+### Should surface CUPS failures as runtime errors
+- Given `cups.Connection.printFile` raises an exception
+- When calling `PrinterService.print_image`
+- Then a `RuntimeError` is raised containing the original failure message
+
+### Should report printer status
+- Given a configured printer `dymo` exists
+- When calling `get_printer_status`
+- Then a printer info dictionary is returned from CUPS
+- And if the printer is missing, the response includes `{ "error": "Printer not found" }`
+
+## Flask API
+
+### /preview should return base64 PNG for valid input
+- Given JSON `{ "text": "Hello", "label_size": "11354", "font_size": 40, "align": "center" }`
+- When posting to `/preview`
+- Then the response status is 200
+- And `success` is true
+- And `image` is a data URL starting with `data:image/png;base64,`
+
+### /preview should return 400 for invalid label size
+- Given JSON `{ "text": "Hello", "label_size": "BAD" }`
+- When posting to `/preview`
+- Then the response status is 400
+- And `success` is false with an error mentioning `Unknown label size`
+
+### /print should submit job and return job id
+- Given JSON `{ "text": "Print Me", "label_size": "11354", "font_size": 40, "align": "center", "copies": 1 }`
+- And `PrinterService.print_image` is mocked to return `123`
+- When posting to `/print`
+- Then the response status is 200
+- And `success` is true
+- And `job_id` equals `123`
+- And the message mentions the submitted job id
+
+### /print should reject empty text with 400
+- Given JSON `{ "text": "", "label_size": "11354" }`
+- When posting to `/print`
+- Then the response status is 400
+- And `success` is false with error `No text provided`
+
+### /print should reject invalid label size with 400
+- Given JSON `{ "text": "Hello", "label_size": "BAD" }`
+- When posting to `/print`
+- Then the response status is 400
+- And `success` is false with an error mentioning `Unknown label size`
+
+### /print should surface CUPS failures with 500
+- Given JSON `{ "text": "Hello", "label_size": "11354" }`
+- And `PrinterService.print_image` raises `RuntimeError("Failed to print: connection error")`
+- When posting to `/print`
+- Then the response status is 500
+- And `success` is false with error `Failed to print: connection error`
+
+### /status should return printer info
+- When calling `GET /status`
+- Then the response status is 200
+- And the body contains either the printer info dictionary from CUPS or an `error` field
+
+## Memory (Saved Labels)
+
+### Should store printed labels as previews without duplication
+- Given a label payload `{ text, label_size, font_size, align, copies }`
+- When `/print` is called successfully
+- Then the label is added to the saved stack as a preview
+- And if an identical label already exists, the old entry is removed and the new one is placed at the top (no duplicates)
+
+### Should allow expand/collapse of the saved stack
+- Given the saved labels section
+- When the user collapses or expands it
+- Then the stack hides or shows without losing its contents
+
+### Should allow selecting a saved label to re-fill the form
+- Given a saved label in the stack
+- When the user selects that saved label
+- Then the main input fields are populated with that label’s text, label_size, font_size, align, and copies
+
+### Should allow deleting a saved label
+- Given a saved label in the stack
+- When the user deletes that saved label
+- Then it is removed from the stack
+- And it is no longer available for selection or duplication checks
+
+### Should allow selecting multiple labels and deleting them at once
+- Given each saved label has a checkbox
+- And a Delete action is available
+- When the user checks multiple labels and presses Delete
+- Then all selected labels are removed from the stack
+- And the remaining labels stay intact in order
+
+### Should allow select-all from the stack header
+- Given a select-all checkbox at the stack level
+- When the user toggles select-all on
+- Then all saved labels become selected
+- And pressing Delete removes all labels
+- And toggling select-all off clears all selections without deleting
+
+## Persistence (Saved Labels on Disk)
+
+### Should persist saved labels to disk after print/delete
+- Given a successful `/print` call that adds to the stack
+- When the stack is written to disk as JSON
+- Then the file contains the saved labels (including ids and fields)
+- And when labels are deleted via `/memory` DELETE, the file is updated accordingly
+
+### Should load saved labels from disk on startup
+- Given a JSON persistence file with saved labels
+- When the app starts (or the module is reloaded)
+- Then `/memory` returns the entries from disk in stack order (most recent first)
+
+## Container / Runtime
+
+### Should start Flask and CUPS with configured admin password
+- Given `.env` contains `CUPS_ADMIN_PASSWORD`
+- When running `docker compose up --build -d`
+- Then the CUPS admin UI is reachable on port 631 with user `cupsadmin`
+- And the Flask app is reachable on port 5000 serving the label UI
+- And the default printer name is `dymo`
